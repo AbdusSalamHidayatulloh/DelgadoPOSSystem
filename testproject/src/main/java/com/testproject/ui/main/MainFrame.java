@@ -1,6 +1,12 @@
-package com.testproject.ui;
+package com.testproject.ui.main;
 
 import com.testproject.db.DatabaseHelper;
+import com.testproject.ui.bahan.BahanPanel;
+import com.testproject.ui.laporan.LaporanPanel;
+import com.testproject.ui.menu.MenuPanel;
+import com.testproject.ui.shift.ShiftPanel;
+import com.testproject.ui.transaksi.TransaksiPanel;
+
 import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
