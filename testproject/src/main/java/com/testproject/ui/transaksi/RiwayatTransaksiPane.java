@@ -7,7 +7,12 @@ import com.testproject.utils.UIHelper;
 
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
-import javafx.scene.control.*;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.TableCell;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
@@ -27,11 +32,14 @@ public class RiwayatTransaksiPane extends VBox {
         lbl.setStyle("-fx-font-weight: bold;");
 
         TableColumn<Transaksi, Integer> colId = new TableColumn<>("ID"); colId.setCellValueFactory(new PropertyValueFactory<>("id")); colId.setPrefWidth(40);
-        TableColumn<Transaksi, String> colTanggal = new TableColumn<>("Tanggal"); colTanggal.setCellValueFactory(new PropertyValueFactory<>("tanggal")); colTanggal.setPrefWidth(130);
+        TableColumn<Transaksi, String> colTanggal = new TableColumn<>("Tanggal"); colTanggal.setCellValueFactory(new PropertyValueFactory<>("tanggal")); colTanggal.setPrefWidth(125);
         TableColumn<Transaksi, String> colNama = new TableColumn<>("Pelanggan"); colNama.setCellValueFactory(new PropertyValueFactory<>("namaPelanggan")); colNama.setPrefWidth(100);
         
-        TableColumn<Transaksi, Double> colTotal = new TableColumn<>("Total"); colTotal.setCellValueFactory(new PropertyValueFactory<>("totalHarga")); colTotal.setCellFactory(col -> new UIHelper.FormatDesimalCell<>()); colTotal.setPrefWidth(90);
-        TableColumn<Transaksi, String> colMetode = new TableColumn<>("Metode"); colMetode.setCellValueFactory(new PropertyValueFactory<>("metodeBayar")); colMetode.setPrefWidth(70);
+        // --- KOLOM BARU UNTUK TIPE PESANAN ---
+        TableColumn<Transaksi, String> colTipe = new TableColumn<>("Tipe"); colTipe.setCellValueFactory(new PropertyValueFactory<>("tipePesanan")); colTipe.setPrefWidth(85);
+
+        TableColumn<Transaksi, Double> colTotal = new TableColumn<>("Total"); colTotal.setCellValueFactory(new PropertyValueFactory<>("totalHarga")); colTotal.setCellFactory(col -> new UIHelper.FormatDesimalCell<>()); colTotal.setPrefWidth(80);
+        TableColumn<Transaksi, String> colMetode = new TableColumn<>("Metode"); colMetode.setCellValueFactory(new PropertyValueFactory<>("metodeBayar")); colMetode.setPrefWidth(65);
 
         TableColumn<Transaksi, StatusPembayaran> colStatus = new TableColumn<>("Status");
         colStatus.setCellValueFactory(new PropertyValueFactory<>("statusPembayaran"));
@@ -46,9 +54,10 @@ public class RiwayatTransaksiPane extends VBox {
                 }
             }
         });
-        colStatus.setPrefWidth(80);
+        colStatus.setPrefWidth(75);
 
-        tableTransaksi.getColumns().addAll(colId, colTanggal, colNama, colTotal, colMetode, colStatus);
+        // Masukkan colTipe ke dalam tabel
+        tableTransaksi.getColumns().addAll(colId, colTanggal, colNama, colTipe, colTotal, colMetode, colStatus);
         tableTransaksi.setItems(dataTransaksi);
         tableTransaksi.setPrefHeight(500);
 

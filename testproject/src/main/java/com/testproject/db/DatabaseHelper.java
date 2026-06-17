@@ -104,7 +104,9 @@ public class DatabaseHelper {
                             status_pembayaran TEXT NOT NULL DEFAULT 'BELUM_LUNAS'
                         )
                     """);
-
+            try {
+                stmt.execute("ALTER TABLE transaksi ADD COLUMN tipe_pesanan TEXT DEFAULT 'Dine-in'");
+            } catch (Exception ignored) {}
             stmt.execute("""
                         CREATE TABLE IF NOT EXISTS detail_transaksi (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,

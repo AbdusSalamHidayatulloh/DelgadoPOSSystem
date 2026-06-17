@@ -40,10 +40,19 @@ public class ShiftHistoryPane extends VBox {
             @Override
             protected void updateItem(String val, boolean empty) {
                 super.updateItem(val, empty);
-                if (empty || val == null || val.isEmpty()) {
+                
+                // PERBAIKAN: Jika barisnya memang kosong, bersihkan tulisannya
+                if (empty || getTableRow() == null || getTableRow().getItem() == null) {
+                    setText(null);
+                    setStyle("");
+                } 
+                // Jika baris ada isinya tapi tanggal tutupnya null/kosong, berarti Aktif
+                else if (val == null || val.trim().isEmpty() || val.equals("null")) {
                     setText("(Aktif)");
                     setStyle("-fx-text-fill: green; -fx-font-weight: bold;");
-                } else {
+                } 
+                // Jika sudah ada tanggal tutupnya
+                else {
                     setText(val);
                     setStyle("");
                 }

@@ -3,8 +3,12 @@ package com.testproject.service;
 import com.testproject.dao.BahanDao;
 import com.testproject.dao.MenuDao;
 import com.testproject.dao.OpsiMenuDao;
+import com.testproject.db.DatabaseHelper;
 import com.testproject.model.*;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.List;
 
 public class MenuService {
@@ -77,15 +81,30 @@ public class MenuService {
     }
 
     public List<ResepItem> ambilResepMenu(int menuId) { return bahanDao.getResepByMenuId(menuId); }
-    public List<ResepItem> ambilResepOpsi(int opsiId) { return opsiDao.getResepByOpsiId(opsiId); }
-    public List<ResepItem> ambilResepPilihan(int pilihanId) { return opsiDao.getResepByPilihanId(pilihanId); }
-
-    public void tambahResepMenu(int mId, Bahan b, String j) { if (b == null) throw new IllegalArgumentException("Pilih bahan!"); bahanDao.addResep(mId, b.getId(), parseJumlah(j)); }
+    
+    public void tambahResepMenu(int mId, Bahan b, String j) { 
+        if (b == null) throw new IllegalArgumentException("Pilih bahan!"); 
+        bahanDao.addResep(mId, b.getId(), parseJumlah(j)); 
+    }
+    
     public void hapusResepMenu(int mId, int bId) { bahanDao.deleteResep(mId, bId); }
 
-    public void tambahResepOpsi(int oId, Bahan b, String j) { if (b == null) throw new IllegalArgumentException("Pilih bahan!"); opsiDao.addResepOpsi(oId, b.getId(), parseJumlah(j)); }
-    public void hapusResepOpsi(int oId, int bId) { opsiDao.deleteResepOpsi(oId, bId); }
-
-    public void tambahResepPilihan(int pId, Bahan b, String j) { if (b == null) throw new IllegalArgumentException("Pilih bahan!"); opsiDao.addResepPilihan(pId, b.getId(), parseJumlah(j)); }
-    public void hapusResepPilihan(int pId, int bId) { opsiDao.deleteResepPilihan(pId, bId); }
+    // FITUR BARU: Menghitung total modal berdasarkan harga restock terakhir
+    public double hitungTotalModalMenu(int menuId) {
+        double totalModal = 0;
+        String sql = "SELECT rm.jumlah_dipakai, " +
+                     "COALESCE((SELECT harga_per_satuan FROM riwayat_restock rr WHERE rr.bahan_id = rm.bahan_id ORDER BY id DESC LIMIT 1), 0) as harga_satuan " +
+                     "FROM resep_menu rm WHERE rm.menu_id = ?";
+        try (Connection conn = DatabaseHelper.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, menuId);
+            ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                totalModal += (rs.getDouble("jumlah_dipakai") * rs.getDouble("harga_satuan"));
+            }
+        } catch (Exception e) {
+            System.out.println("Error hitungTotalModalMenu: " + e.getMessage());
+        }
+        return totalModal;
+    }
 }

@@ -7,16 +7,18 @@ public class Transaksi {
     private double totalHarga;
     private String metodeBayar;
     private StatusPembayaran statusPembayaran;
+    private String tipePesanan; // FITUR BARU
 
     public Transaksi() {}
 
-    public Transaksi(int id, String namaPelanggan, String tanggal, double totalHarga, String metodeBayar, StatusPembayaran statusPembayaran) {
+    public Transaksi(int id, String namaPelanggan, String tanggal, double totalHarga, String metodeBayar, StatusPembayaran statusPembayaran, String tipePesanan) {
         this.id = id;
         this.namaPelanggan = namaPelanggan;
         this.tanggal = tanggal;
         this.totalHarga = totalHarga;
         this.metodeBayar = metodeBayar;
         this.statusPembayaran = statusPembayaran;
+        this.tipePesanan = tipePesanan;
     }
 
     public int getId() { return id; }
@@ -36,4 +38,7 @@ public class Transaksi {
 
     public StatusPembayaran getStatusPembayaran() { return statusPembayaran; }
     public void setStatusPembayaran(StatusPembayaran statusPembayaran) { this.statusPembayaran = statusPembayaran; }
+
+    public String getTipePesanan() { return tipePesanan; }
+    public void setTipePesanan(String tipePesanan) { this.tipePesanan = tipePesanan; }
 }

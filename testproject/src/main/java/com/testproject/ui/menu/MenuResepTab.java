@@ -19,6 +19,12 @@ public class MenuResepTab extends VBox {
     private final TableView<ResepItem> tableResep = new TableView<>();
     private final ComboBox<Bahan> cmbBahanResep = new ComboBox<>();
     private final TextField txtJumlahResep = new TextField();
+    
+    // UI Untuk Kalkulator Keuntungan
+    private final Label lblHargaJual = new Label("Harga Jual: Rp 0");
+    private final Label lblTotalModal = new Label("Total Modal Bahan: Rp 0");
+    private final Label lblProfit = new Label("Estimasi Keuntungan: Rp 0");
+
     private MenuItem currentMenu = null;
 
     public MenuResepTab(MenuService service) {
@@ -72,7 +78,18 @@ public class MenuResepTab extends VBox {
             }
         });
 
-        getChildren().addAll(lbl, tableResep, new Label("Tambah Bahan:"), grid, new HBox(8, btnTambah, btnHapus));
+        // KARTU RINGKASAN KEUNTUNGAN
+        VBox summaryCard = new VBox(6);
+        summaryCard.setPadding(new Insets(10));
+        summaryCard.setStyle("-fx-background-color: #f8f9fa; -fx-border-color: #dee2e6; -fx-border-radius: 5;");
+        
+        lblHargaJual.setStyle("-fx-font-size: 13px;");
+        lblTotalModal.setStyle("-fx-font-size: 13px;");
+        lblProfit.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
+        
+        summaryCard.getChildren().addAll(lblHargaJual, lblTotalModal, new Separator(), lblProfit);
+
+        getChildren().addAll(lbl, tableResep, new Label("Tambah Bahan:"), grid, new HBox(8, btnTambah, btnHapus), new Separator(), summaryCard);
     }
 
     public void setMenu(MenuItem menu) {
@@ -87,8 +104,29 @@ public class MenuResepTab extends VBox {
     private void refreshResep() {
         if (currentMenu != null) {
             tableResep.getItems().setAll(service.ambilResepMenu(currentMenu.getId()));
+            
+            // --- LOGIKA PERHITUNGAN PREVIEW KEUNTUNGAN ---
+            double hargaJual = currentMenu.getHarga();
+            double totalModal = service.hitungTotalModalMenu(currentMenu.getId());
+            double profit = hargaJual - totalModal;
+
+            lblHargaJual.setText(String.format("Harga Jual Menu: Rp %.0f", hargaJual));
+            lblTotalModal.setText(String.format("Total Modal Bahan (HPP): Rp %.0f", totalModal));
+            lblProfit.setText(String.format("Estimasi Keuntungan: Rp %.0f", profit));
+
+            // Beri warna merah jika rugi, hijau jika untung
+            if (profit < 0) {
+                lblProfit.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #e74c3c;");
+            } else {
+                lblProfit.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #27ae60;");
+            }
+
         } else {
             tableResep.getItems().clear();
+            lblHargaJual.setText("Harga Jual: Rp 0");
+            lblTotalModal.setText("Total Modal Bahan: Rp 0");
+            lblProfit.setText("Estimasi Keuntungan: Rp 0");
+            lblProfit.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: black;");
         }
     }
 }

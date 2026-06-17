@@ -39,10 +39,20 @@ public class LaporanService {
             stmt.setString(2, sampai);
             ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
+                
+                // --- BACA KOLOM BARU tipe_pesanan ---
+                String tipePesanan = "Dine-in"; // Fallback default
+                try {
+                    tipePesanan = rs.getString("tipe_pesanan");
+                    if (tipePesanan == null) tipePesanan = "Dine-in";
+                } catch (Exception ignored) { /* Abaikan jika DB sangat lama */ }
+
+                // Masukkan tipePesanan sebagai parameter ke-7
                 list.add(new Transaksi(
                         rs.getInt("id"), rs.getString("nama_pelanggan"), rs.getString("tanggal"),
                         rs.getDouble("total_harga"), rs.getString("metode_bayar"),
-                        StatusPembayaran.valueOf(rs.getString("status_pembayaran"))));
+                        StatusPembayaran.valueOf(rs.getString("status_pembayaran")),
+                        tipePesanan));
             }
         } catch (Exception e) { System.out.println("Error getTransaksi: " + e.getMessage()); }
         return list;

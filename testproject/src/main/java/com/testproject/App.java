@@ -1,6 +1,6 @@
 package com.testproject;
 
-import com.testproject.ui.main.MainFrame;
+import com.testproject.ui.MainFrame;
 
 public class App {
     public static void main(String[] args) {
