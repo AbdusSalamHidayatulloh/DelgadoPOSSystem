@@ -2,8 +2,10 @@ package com.testproject.dao;
 
 import com.testproject.db.DatabaseHelper;
 import com.testproject.model.DetailTransaksi;
+import com.testproject.model.MenuItem;
 import com.testproject.model.StatusPembayaran;
 import com.testproject.model.Transaksi;
+import com.testproject.ui.transaksi.ItemKeranjang;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -29,6 +31,30 @@ public class TransaksiDao {
         return list;
     }
 
+    // --- FUNGSI BARU UNTUK MENGAMBIL DATA STRUK RE-PRINT ---
+    public List<ItemKeranjang> getDetailKeranjang(int transaksiId) {
+        List<ItemKeranjang> list = new ArrayList<>();
+        String sql = "SELECT d.jumlah, d.subtotal, d.keterangan, m.id as m_id, m.nama, m.harga, m.tipe " +
+                     "FROM detail_transaksi d " +
+                     "JOIN menu m ON d.menu_id = m.id " +
+                     "WHERE d.transaksi_id = ?";
+        try (Connection conn = DatabaseHelper.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, transaksiId);
+            ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                MenuItem menu = new MenuItem(rs.getInt("m_id"), rs.getString("nama"), rs.getDouble("harga"), rs.getString("tipe"));
+                String ket = rs.getString("keterangan");
+                if (ket == null) ket = "";
+                // Kita kembalikan ke bentuk ItemKeranjang agar bisa dibaca oleh PrinterHelper
+                list.add(new ItemKeranjang(menu, rs.getInt("jumlah"), rs.getDouble("subtotal"), ket, new ArrayList<>(), new ArrayList<>()));
+            }
+        } catch (Exception e) {
+            System.out.println("Error getDetailKeranjang: " + e.getMessage());
+        }
+        return list;
+    }
+
     public int simpanTransaksiLengkap(
             Transaksi t,
             List<DetailTransaksi> details,
@@ -36,12 +62,12 @@ public class TransaksiDao {
             List<List<Integer>> checkedOpsiIdsList,
             List<List<Integer>> chosenPilihanIdsList) {
 
-        // --- UPDATE QUERY: Tambah tipe_pesanan ---
         String sqlTransaksi = "INSERT INTO transaksi " +
                 "(nama_pelanggan, tanggal, total_harga, metode_bayar, status_pembayaran, tipe_pesanan) " +
                 "VALUES (?, ?, ?, ?, ?, ?)";
+        // Tambahan kolom keterangan
         String sqlDetail = "INSERT INTO detail_transaksi " +
-                "(transaksi_id, menu_id, jumlah, subtotal) VALUES (?, ?, ?, ?)";
+                "(transaksi_id, menu_id, jumlah, subtotal, keterangan) VALUES (?, ?, ?, ?, ?)";
 
         try (Connection conn = DatabaseHelper.getTransactionConnection()) {
             try {
@@ -52,7 +78,7 @@ public class TransaksiDao {
                     stmt.setDouble(3, t.getTotalHarga());
                     stmt.setString(4, t.getMetodeBayar());
                     stmt.setString(5, t.getStatusPembayaran().name());
-                    stmt.setString(6, t.getTipePesanan()); // SET DATA BARU
+                    stmt.setString(6, t.getTipePesanan()); 
                     stmt.executeUpdate();
                     ResultSet keys = stmt.getGeneratedKeys();
                     if (!keys.next()) throw new Exception("Gagal mendapatkan transaksi ID");
@@ -65,6 +91,7 @@ public class TransaksiDao {
                         stmt.setInt(2, d.getMenuId());
                         stmt.setInt(3, d.getJumlah());
                         stmt.setDouble(4, d.getSubtotal());
+                        stmt.setString(5, d.getKeterangan()); // Parameter ke-5
                         stmt.addBatch();
                     }
                     stmt.executeBatch();
@@ -76,10 +103,7 @@ public class TransaksiDao {
                         opsiMenuDao, d.getMenuId(), d.getJumlah(),
                         checkedOpsiIdsList.get(i), chosenPilihanIdsList.get(i)
                     );
-                    if (!ok) {
-                        conn.rollback();
-                        return -1;
-                    }
+                    if (!ok) { conn.rollback(); return -1; }
                 }
 
                 conn.commit();
@@ -102,9 +126,7 @@ public class TransaksiDao {
             stmt.setString(1, status);
             stmt.setInt(2, id);
             stmt.executeUpdate();
-        } catch (Exception e) {
-            System.out.println("Error updateStatus Transaksi: " + e.getMessage());
-        }
+        } catch (Exception e) { }
     }
 
     public void delete(int id) {
@@ -126,15 +148,14 @@ public class TransaksiDao {
     private Transaksi mapRow(ResultSet rs) throws Exception {
         String statusStr = rs.getString("status_pembayaran");
         StatusPembayaran status;
-        try { status = StatusPembayaran.valueOf(statusStr); }
-        catch (Exception e) { status = StatusPembayaran.BELUM_LUNAS; }
+        try { status = StatusPembayaran.valueOf(statusStr); } 
+        catch (Exception e) { status = StatusPembayaran.SEDANG_DIPROSES; }
         
-        // --- BACA KOLOM BARU tipe_pesanan ---
-        String tipePesanan = "Dine-in"; // Fallback default
+        String tipePesanan = "Dine-in";
         try {
             tipePesanan = rs.getString("tipe_pesanan");
             if (tipePesanan == null) tipePesanan = "Dine-in";
-        } catch (Exception e) { /* Abaikan jika DB sangat lama */ }
+        } catch (Exception e) { }
 
         return new Transaksi(
             rs.getInt("id"), rs.getString("nama_pelanggan"),

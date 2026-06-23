@@ -3,13 +3,17 @@ package com.testproject.ui.menu;
 import com.testproject.model.MenuItem;
 import com.testproject.service.MenuService;
 import com.testproject.utils.UIHelper;
+import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 public class MenuLeftPane extends VBox {
     private final MenuService service;
@@ -20,6 +24,10 @@ public class MenuLeftPane extends VBox {
     
     private MenuItem selectedMenu = null;
 
+    private List<MenuItem> allMenuItems = new ArrayList<>();
+    private final Pagination pagination = new Pagination();
+    private final int ROWS_PER_PAGE = 15;
+
     public MenuLeftPane(MenuService service, Consumer<MenuItem> onMenuSelected) {
         this.service = service;
         setSpacing(8);
@@ -28,7 +36,6 @@ public class MenuLeftPane extends VBox {
         Label lbl = new Label("Daftar Menu");
         lbl.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
 
-        // Tabel Menu
         TableColumn<MenuItem, String> colNama = new TableColumn<>("Nama");
         colNama.setCellValueFactory(new PropertyValueFactory<>("nama"));
         colNama.setPrefWidth(120);
@@ -43,7 +50,7 @@ public class MenuLeftPane extends VBox {
         colTipe.setPrefWidth(80);
 
         tableMenu.getColumns().addAll(colNama, colHarga, colTipe);
-        tableMenu.setPrefHeight(250);
+        tableMenu.setPrefHeight(350);
 
         tableMenu.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> {
             selectedMenu = n;
@@ -52,14 +59,16 @@ public class MenuLeftPane extends VBox {
                 txtHarga.setText(String.valueOf(n.getHarga() == Math.floor(n.getHarga()) ? (int) n.getHarga() : n.getHarga()));
                 cmbTipe.setValue(n.getTipe());
             }
-            onMenuSelected.accept(n); // Memberitahu Tab Kanan
+            onMenuSelected.accept(n); 
         });
 
-        // Form Input
+        pagination.setPageFactory(this::createPage);
+
         txtNama.setPromptText("Nama menu");
         txtHarga.setPromptText("Harga");
-        cmbTipe.getItems().addAll("Makanan", "Minuman");
-        cmbTipe.setValue("Makanan");
+        
+        cmbTipe.setEditable(true);
+        cmbTipe.setPromptText("Pilih atau ketik kategori baru...");
 
         GridPane grid = new GridPane();
         grid.setHgap(10); grid.setVgap(8);
@@ -67,7 +76,6 @@ public class MenuLeftPane extends VBox {
         grid.addRow(1, new Label("Harga:"), txtHarga);
         grid.addRow(2, new Label("Tipe:"), cmbTipe);
 
-        // Buttons
         Button btnTambah = new Button("Tambah");
         Button btnUpdate = new Button("Update");
         Button btnHapus = new Button("Hapus");
@@ -75,16 +83,22 @@ public class MenuLeftPane extends VBox {
 
         btnTambah.setOnAction(e -> {
             if (selectedMenu != null) { UIHelper.showAlert(Alert.AlertType.WARNING, "Info", "Tekan Reset untuk tambah baru!"); return; }
+            if (cmbTipe.getValue() == null || cmbTipe.getValue().trim().isEmpty()) {
+                UIHelper.showAlert(Alert.AlertType.WARNING, "Peringatan", "Tipe kategori tidak boleh kosong!"); return;
+            }
             try {
-                service.simpanMenu(null, txtNama.getText(), txtHarga.getText(), cmbTipe.getValue());
+                service.simpanMenu(null, txtNama.getText(), txtHarga.getText(), cmbTipe.getValue().trim());
                 refreshData(); resetForm();
             } catch (IllegalArgumentException ex) { UIHelper.showAlert(Alert.AlertType.ERROR, "Error", ex.getMessage()); }
         });
 
         btnUpdate.setOnAction(e -> {
             if (selectedMenu == null) return;
+            if (cmbTipe.getValue() == null || cmbTipe.getValue().trim().isEmpty()) {
+                UIHelper.showAlert(Alert.AlertType.WARNING, "Peringatan", "Tipe kategori tidak boleh kosong!"); return;
+            }
             try {
-                service.simpanMenu(selectedMenu.getId(), txtNama.getText(), txtHarga.getText(), cmbTipe.getValue());
+                service.simpanMenu(selectedMenu.getId(), txtNama.getText(), txtHarga.getText(), cmbTipe.getValue().trim());
                 refreshData(); resetForm();
             } catch (IllegalArgumentException ex) { UIHelper.showAlert(Alert.AlertType.ERROR, "Error", ex.getMessage()); }
         });
@@ -98,15 +112,58 @@ public class MenuLeftPane extends VBox {
         btnReset.setOnAction(e -> resetForm());
 
         HBox buttons = new HBox(8, btnTambah, btnUpdate, btnHapus, btnReset);
-        getChildren().addAll(lbl, tableMenu, new Label("Form Menu:"), grid, buttons);
+        getChildren().addAll(lbl, pagination, new Label("Form Menu:"), grid, buttons);
+    }
+
+    private Node createPage(int pageIndex) {
+        int fromIndex = pageIndex * ROWS_PER_PAGE;
+        int toIndex = Math.min(fromIndex + ROWS_PER_PAGE, allMenuItems.size());
+        
+        if (fromIndex <= toIndex && !allMenuItems.isEmpty()) {
+            tableMenu.getItems().setAll(allMenuItems.subList(fromIndex, toIndex));
+        } else {
+            tableMenu.getItems().clear();
+        }
+        return tableMenu;
     }
 
     public void refreshData() {
-        tableMenu.getItems().setAll(service.ambilSemuaMenu());
+        // --- TRIK GHOST ITEM: Sembunyikan Item Manual dari tabel ---
+        allMenuItems = service.ambilSemuaMenu().stream()
+                .filter(m -> !(m.getNama().equalsIgnoreCase("Item Manual") && m.getTipe().equalsIgnoreCase("Kustom")))
+                .collect(Collectors.toList());
+
+        List<String> categories = allMenuItems.stream()
+                .map(MenuItem::getTipe)
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
+
+        if (categories.isEmpty()) {
+            categories.add("Makanan");
+            categories.add("Minuman");
+        }
+
+        String currentVal = cmbTipe.getValue();
+        cmbTipe.getItems().setAll(categories);
+        if (currentVal != null && !currentVal.isEmpty()) cmbTipe.setValue(currentVal);
+        else cmbTipe.setValue(categories.get(0));
+
+        int pageCount = (int) Math.ceil((double) allMenuItems.size() / ROWS_PER_PAGE);
+        pagination.setPageCount(pageCount == 0 ? 1 : pageCount);
+        
+        int currPage = pagination.getCurrentPageIndex();
+        if (currPage >= pageCount && pageCount > 0) currPage = pageCount - 1;
+        
+        pagination.setCurrentPageIndex(currPage);
+        createPage(currPage);
     }
 
     private void resetForm() {
-        txtNama.clear(); txtHarga.clear(); cmbTipe.setValue("Makanan");
+        txtNama.clear(); 
+        txtHarga.clear(); 
+        if (!cmbTipe.getItems().isEmpty()) cmbTipe.setValue(cmbTipe.getItems().get(0));
+        else cmbTipe.setValue("Makanan");
         selectedMenu = null;
         tableMenu.getSelectionModel().clearSelection();
     }

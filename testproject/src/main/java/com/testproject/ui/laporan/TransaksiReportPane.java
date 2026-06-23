@@ -6,8 +6,8 @@ import com.testproject.service.LaporanService;
 import com.testproject.utils.UIHelper;
 
 import javafx.collections.FXCollections;
-import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
+import javafx.collections.ListChangeListener;
 import javafx.geometry.Insets;
 import javafx.scene.control.Button;
 import javafx.scene.control.DatePicker;
@@ -45,6 +45,7 @@ public class TransaksiReportPane extends VBox {
         TableColumn<Transaksi, Double> colTotal = new TableColumn<>("Total"); colTotal.setCellValueFactory(new PropertyValueFactory<>("totalHarga")); colTotal.setCellFactory(c -> new UIHelper.FormatDesimalCell<>()); colTotal.setPrefWidth(120);
         TableColumn<Transaksi, String> colMetode = new TableColumn<>("Metode"); colMetode.setCellValueFactory(new PropertyValueFactory<>("metodeBayar")); colMetode.setPrefWidth(100);
 
+        // --- PEMBARUAN: MENDUKUNG 4 WARNA STATUS PADA TAB LAPORAN KEUANGAN ---
         TableColumn<Transaksi, StatusPembayaran> colStatus = new TableColumn<>("Status");
         colStatus.setCellValueFactory(new PropertyValueFactory<>("statusPembayaran"));
         colStatus.setCellFactory(col -> new TableCell<>() {
@@ -52,13 +53,18 @@ public class TransaksiReportPane extends VBox {
                 super.updateItem(val, empty);
                 if (empty || val == null) { setText(null); setStyle(""); } 
                 else {
-                    boolean lunas = val == StatusPembayaran.LUNAS;
-                    setText(lunas ? "✓ Lunas" : "⏳ Belum");
-                    setStyle(lunas ? "-fx-text-fill: green;" : "-fx-text-fill: red;");
+                    setText(val.toString());
+                    switch (val) {
+                        case LUNAS -> setStyle("-fx-text-fill: green; -fx-font-weight: bold;");
+                        case REFUND -> setStyle("-fx-text-fill: orange; -fx-font-weight: bold;");
+                        case BATAL -> setStyle("-fx-text-fill: red; -fx-font-weight: bold;");
+                        case SEDANG_DIPROSES -> setStyle("-fx-text-fill: blue; -fx-font-weight: bold;");
+                    }
                 }
             }
         });
-        colStatus.setPrefWidth(80);
+        colStatus.setPrefWidth(110);
+        // ---------------------------------------------------------------------
 
         table.getColumns().addAll(colId, colTanggal, colNama, colTotal, colMetode, colStatus);
         table.setItems(data);

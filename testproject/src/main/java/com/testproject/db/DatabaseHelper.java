@@ -114,10 +114,14 @@ public class DatabaseHelper {
                             menu_id INTEGER NOT NULL,
                             jumlah INTEGER NOT NULL,
                             subtotal REAL NOT NULL,
+                            keterangan TEXT DEFAULT '',
                             FOREIGN KEY (transaksi_id) REFERENCES transaksi(id),
                             FOREIGN KEY (menu_id) REFERENCES menu(id)
                         )
                     """);
+            try {
+                stmt.execute("ALTER TABLE detail_transaksi ADD COLUMN keterangan TEXT DEFAULT ''");
+            } catch (Exception ignored) {}
 
             stmt.execute("""
                         CREATE TABLE IF NOT EXISTS shift_kas (

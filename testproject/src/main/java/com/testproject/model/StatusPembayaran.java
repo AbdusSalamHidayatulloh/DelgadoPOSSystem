@@ -2,13 +2,17 @@ package com.testproject.model;
 
 public enum StatusPembayaran {
     LUNAS,
-    BELUM_LUNAS;
+    REFUND,
+    BATAL,
+    SEDANG_DIPROSES;
 
     @Override
     public String toString() {
         return switch (this) {
             case LUNAS -> "Lunas";
-            case BELUM_LUNAS -> "Belum Lunas";
+            case REFUND -> "Refund";
+            case BATAL -> "Batal";
+            case SEDANG_DIPROSES -> "Sedang Diproses";
         };
     }
 }

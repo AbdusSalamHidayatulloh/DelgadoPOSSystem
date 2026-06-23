@@ -11,10 +11,12 @@ import com.testproject.utils.UIHelper;
 import javafx.geometry.Insets;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
+import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
@@ -56,20 +58,41 @@ public class MenuOpsiTab extends ScrollPane {
         Label lbl = new Label("1. Opsi Menu (Misal: Topping, Level Pedas)");
         lbl.setStyle("-fx-font-weight: bold;");
 
-        TableColumn<OpsiMenu, String> colNama = new TableColumn<>("Nama Opsi"); colNama.setCellValueFactory(new PropertyValueFactory<>("namaOpsi")); colNama.setPrefWidth(120);
-        TableColumn<OpsiMenu, String> colTipe = new TableColumn<>("Tipe"); colTipe.setCellValueFactory(new PropertyValueFactory<>("tipeOpsi"));
-        TableColumn<OpsiMenu, Double> colHarga = new TableColumn<>("Harga Tambahan"); colHarga.setCellValueFactory(new PropertyValueFactory<>("hargaTambahan")); colHarga.setCellFactory(c -> new UIHelper.FormatDesimalCell<>());
+        TableColumn<OpsiMenu, String> colNama = new TableColumn<>("Nama Opsi"); 
+        colNama.setCellValueFactory(new PropertyValueFactory<>("namaOpsi")); 
+        colNama.setPrefWidth(120);
         
-        tableOpsi.getColumns().addAll(colNama, colTipe, colHarga);
+        TableColumn<OpsiMenu, String> colTipe = new TableColumn<>("Tipe"); 
+        colTipe.setCellValueFactory(new PropertyValueFactory<>("tipeOpsi"));
+        
+        // KOLOM BARU: Status Wajib
+        TableColumn<OpsiMenu, Boolean> colWajib = new TableColumn<>("Wajib?");
+        colWajib.setCellValueFactory(new PropertyValueFactory<>("wajib"));
+        colWajib.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(Boolean item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : (item ? "Ya" : "Tidak"));
+            }
+        });
+
+        TableColumn<OpsiMenu, Double> colHarga = new TableColumn<>("Harga Tambahan"); 
+        colHarga.setCellValueFactory(new PropertyValueFactory<>("hargaTambahan")); 
+        colHarga.setCellFactory(c -> new UIHelper.FormatDesimalCell<>());
+        
+        tableOpsi.getColumns().addAll(colNama, colTipe, colWajib, colHarga);
         tableOpsi.setPrefHeight(120);
 
         TextField txtNamaOpsi = new TextField(); txtNamaOpsi.setPromptText("Nama Opsi");
         ComboBox<String> cmbTipe = new ComboBox<>(); cmbTipe.getItems().addAll("checkbox", "pilihan"); cmbTipe.setValue("pilihan");
         TextField txtHarga = new TextField(); txtHarga.setPromptText("Harga (Cuma checkbox)");
+        
+        // CHECKBOX BARU: Untuk menentukan opsi wajib
+        CheckBox chkWajib = new CheckBox("Wajib diisi");
 
         GridPane grid = new GridPane(); grid.setHgap(8); grid.setVgap(8);
         grid.addRow(0, new Label("Nama:"), txtNamaOpsi, new Label("Tipe:"), cmbTipe);
-        grid.addRow(1, new Label("Harga:"), txtHarga);
+        grid.addRow(1, new Label("Harga:"), txtHarga, chkWajib);
 
         tableOpsi.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> {
             selectedOpsi = n;
@@ -77,6 +100,7 @@ public class MenuOpsiTab extends ScrollPane {
                 txtNamaOpsi.setText(n.getNamaOpsi());
                 cmbTipe.setValue(n.getTipeOpsi());
                 txtHarga.setText(String.valueOf(n.getHargaTambahan()));
+                chkWajib.setSelected(n.isWajib()); // Update checkbox sesuai data tabel
             }
             refreshPilihan();
         });
@@ -85,9 +109,15 @@ public class MenuOpsiTab extends ScrollPane {
         btnTambah.setOnAction(e -> {
             if (currentMenu == null) return;
             try {
-                service.tambahOpsi(currentMenu.getId(), txtNamaOpsi.getText(), cmbTipe.getValue(), false, txtHarga.getText());
-                refreshOpsi(); txtNamaOpsi.clear(); txtHarga.clear();
-            } catch (IllegalArgumentException ex) { UIHelper.showAlert(Alert.AlertType.ERROR, "Error", ex.getMessage()); }
+                // PARAMETER KETIGA (wajib) diisi dari status CheckBox
+                service.tambahOpsi(currentMenu.getId(), txtNamaOpsi.getText(), cmbTipe.getValue(), chkWajib.isSelected(), txtHarga.getText());
+                refreshOpsi(); 
+                txtNamaOpsi.clear(); 
+                txtHarga.clear();
+                chkWajib.setSelected(false);
+            } catch (IllegalArgumentException ex) { 
+                UIHelper.showAlert(Alert.AlertType.ERROR, "Error", ex.getMessage()); 
+            }
         });
 
         Button btnHapus = new Button("Hapus Opsi");

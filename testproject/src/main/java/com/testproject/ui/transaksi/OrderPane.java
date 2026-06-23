@@ -8,6 +8,8 @@ import com.testproject.model.StatusPembayaran;
 import com.testproject.model.Transaksi;
 import com.testproject.service.MenuService;
 import com.testproject.service.TransaksiService;
+import com.testproject.utils.PrinterHelper;
+import com.testproject.utils.StoreConfig;
 import com.testproject.utils.UIHelper;
 
 import javafx.collections.FXCollections;
@@ -18,6 +20,7 @@ import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
@@ -27,6 +30,8 @@ import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
@@ -41,6 +46,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class OrderPane extends HBox {
     private final TransaksiService transaksiService;
@@ -51,6 +57,10 @@ public class OrderPane extends HBox {
     private final TableView<MenuItem> tableMenu = new TableView<>();
     private final ObservableList<MenuItem> allMenuItems = FXCollections.observableArrayList();
     private final FilteredList<MenuItem> filteredMenu = new FilteredList<>(allMenuItems, p -> true);
+
+    private final HBox categoryBox = new HBox(10);
+    private final ToggleGroup categoryGroup = new ToggleGroup();
+    private String selectedCategory = "Semua"; 
 
     private final TextField txtNamaPelanggan = new TextField();
     private final ComboBox<String> cmbTipePesanan = new ComboBox<>();
@@ -70,12 +80,25 @@ public class OrderPane extends HBox {
         VBox leftPane = new VBox(10);
         HBox.setHgrow(leftPane, Priority.ALWAYS);
 
-        txtSearchMenu.setPromptText("🔍 Cari menu berdasarkan nama atau tipe...");
+        txtSearchMenu.setPromptText("🔍 Cari menu berdasarkan nama...");
         txtSearchMenu.setStyle("-fx-font-size: 14px; -fx-padding: 8px;");
-        txtSearchMenu.textProperty().addListener((obs, old, val) -> {
-            String lower = val.toLowerCase().trim();
-            filteredMenu.setPredicate(item -> lower.isEmpty() || item.getNama().toLowerCase().contains(lower) || item.getTipe().toLowerCase().contains(lower));
-        });
+        txtSearchMenu.textProperty().addListener((obs, old, val) -> applyFilters());
+
+        categoryBox.setAlignment(Pos.CENTER_LEFT);
+
+        Button btnManualItem = new Button("➕ Kasir Manual");
+        btnManualItem.setStyle("-fx-background-color: #f39c12; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8px;");
+        btnManualItem.setOnAction(e -> tampilkanDialogKasirManual());
+
+        // --- FITUR BARU: TOMBOL SETING STRUK ---
+        Button btnSettingStruk = new Button("⚙ Seting Struk");
+        btnSettingStruk.setStyle("-fx-background-color: #7f8c8d; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8px;");
+        btnSettingStruk.setOnAction(e -> tampilkanDialogSettingStruk());
+
+        HBox searchContainer = new HBox(10, txtSearchMenu, btnManualItem, btnSettingStruk);
+        HBox.setHgrow(txtSearchMenu, Priority.ALWAYS);
+        searchContainer.setAlignment(Pos.CENTER_LEFT);
+        // ---------------------------------------
 
         TableColumn<MenuItem, String> colNamaMenu = new TableColumn<>("Nama Menu");
         colNamaMenu.setCellValueFactory(new PropertyValueFactory<>("nama"));
@@ -112,11 +135,10 @@ public class OrderPane extends HBox {
         tableMenu.setItems(filteredMenu);
         VBox.setVgrow(tableMenu, Priority.ALWAYS);
 
-        leftPane.getChildren().addAll(txtSearchMenu, tableMenu);
-
+        leftPane.getChildren().addAll(categoryBox, searchContainer, tableMenu);
 
         VBox rightPane = new VBox(12);
-        rightPane.setPrefWidth(450); // Diperlebar sedikit untuk kolom opsi
+        rightPane.setPrefWidth(450); 
         rightPane.setStyle("-fx-background-color: #f8f9fa; -fx-padding: 15; -fx-border-color: #dee2e6; -fx-border-radius: 8;");
 
         Label lblPesanan = new Label("📝 Detail Pesanan");
@@ -132,9 +154,28 @@ public class OrderPane extends HBox {
         gridCustomer.addRow(0, new Label("Tipe:"), cmbTipePesanan);
         gridCustomer.addRow(1, new Label("Nama:"), txtNamaPelanggan);
 
-        // --- PERBAIKAN: KOLOM OPSI DITAMBAHKAN KEMBALI ---
         TableColumn<ItemKeranjang, String> colNamaKeranjang = new TableColumn<>("Menu");
         colNamaKeranjang.setCellValueFactory(new PropertyValueFactory<>("namaMenu"));
+        colNamaKeranjang.setCellFactory(col -> new TableCell<>() {
+            @Override protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || getTableRow() == null || getTableRow().getItem() == null) {
+                    setText(null);
+                } else {
+                    ItemKeranjang kItem = getTableRow().getItem();
+                    if (kItem.getMenu().getTipe().equals("Kustom") && item.equals("Item Manual")) {
+                        String ket = kItem.getKeteranganOpsi();
+                        if (ket.contains(" (Rp")) {
+                            setText("✏ " + ket.substring(0, ket.indexOf(" (Rp")).trim());
+                        } else {
+                            setText("✏ " + ket);
+                        }
+                    } else {
+                        setText(item);
+                    }
+                }
+            }
+        });
         colNamaKeranjang.setPrefWidth(130);
 
         TableColumn<ItemKeranjang, Integer> colQty = new TableColumn<>("Qty");
@@ -143,6 +184,21 @@ public class OrderPane extends HBox {
         
         TableColumn<ItemKeranjang, String> colOpsi = new TableColumn<>("Opsi");
         colOpsi.setCellValueFactory(new PropertyValueFactory<>("keteranganOpsi"));
+        colOpsi.setCellFactory(col -> new TableCell<>() {
+            @Override protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || getTableRow() == null || getTableRow().getItem() == null) {
+                    setText(null);
+                } else {
+                    ItemKeranjang kItem = getTableRow().getItem();
+                    if (kItem.getMenu().getTipe().equals("Kustom")) {
+                        setText("-"); 
+                    } else {
+                        setText(item);
+                    }
+                }
+            }
+        });
         colOpsi.setPrefWidth(120);
 
         TableColumn<ItemKeranjang, Double> colSubtotal = new TableColumn<>("Subtotal");
@@ -151,8 +207,6 @@ public class OrderPane extends HBox {
         colSubtotal.setPrefWidth(90);
 
         tableKeranjang.getColumns().addAll(colNamaKeranjang, colQty, colOpsi, colSubtotal);
-        // ------------------------------------------------
-
         tableKeranjang.setItems(keranjang);
         tableKeranjang.setPrefHeight(250);
 
@@ -169,7 +223,7 @@ public class OrderPane extends HBox {
         cmbMetodeBayar.setItems(FXCollections.observableArrayList("Cash", "QRIS", "Transfer"));
         cmbMetodeBayar.setValue("Cash"); cmbMetodeBayar.setMaxWidth(Double.MAX_VALUE);
         
-        cmbStatus.setItems(FXCollections.observableArrayList("LUNAS", "BELUM_LUNAS"));
+        cmbStatus.setItems(FXCollections.observableArrayList("LUNAS", "SEDANG_DIPROSES", "REFUND", "BATAL"));
         cmbStatus.setValue("LUNAS"); cmbStatus.setMaxWidth(Double.MAX_VALUE);
 
         GridPane gridBayar = new GridPane(); gridBayar.setHgap(10); gridBayar.setVgap(8);
@@ -194,7 +248,150 @@ public class OrderPane extends HBox {
         getChildren().addAll(leftPane, rightPane);
     }
 
-    public void loadMenuData() { allMenuItems.setAll(menuService.ambilSemuaMenu()); }
+    public void loadMenuData() { 
+        allMenuItems.setAll(menuService.ambilSemuaMenu()); 
+        refreshCategoryButtons(); 
+    }
+
+    private void refreshCategoryButtons() {
+        categoryBox.getChildren().clear();
+        categoryGroup.getToggles().clear();
+
+        ToggleButton btnSemua = new ToggleButton("Semua");
+        btnSemua.setToggleGroup(categoryGroup);
+        btnSemua.setSelected(true);
+        btnSemua.setOnAction(e -> { selectedCategory = "Semua"; applyFilters(); });
+        categoryBox.getChildren().add(btnSemua);
+
+        List<String> categories = allMenuItems.stream()
+                .map(MenuItem::getTipe)
+                .filter(tipe -> !tipe.equals("Kustom")) 
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
+
+        for (String cat : categories) {
+            ToggleButton btnCat = new ToggleButton(cat);
+            btnCat.setToggleGroup(categoryGroup);
+            btnCat.setOnAction(e -> {
+                if (btnCat.isSelected()) selectedCategory = cat;
+                else { btnSemua.setSelected(true); selectedCategory = "Semua"; }
+                applyFilters();
+            });
+            categoryBox.getChildren().add(btnCat);
+        }
+        applyFilters();
+    }
+
+    private void applyFilters() {
+        String search = txtSearchMenu.getText().toLowerCase().trim();
+        filteredMenu.setPredicate(item -> {
+            if (item.getNama().equalsIgnoreCase("Item Manual") && item.getTipe().equals("Kustom")) return false;
+
+            boolean matchesSearch = search.isEmpty() || item.getNama().toLowerCase().contains(search);
+            boolean matchesCategory = selectedCategory.equals("Semua") || item.getTipe().equalsIgnoreCase(selectedCategory);
+            return matchesSearch && matchesCategory;
+        });
+    }
+
+    // --- FUNGSI BARU: MENAMPILKAN DIALOG PENGATURAN TOKO ---
+    private void tampilkanDialogSettingStruk() {
+        Stage dialog = new Stage();
+        dialog.initModality(Modality.APPLICATION_MODAL);
+        dialog.setTitle("Pengaturan Struk Kasir");
+
+        VBox box = new VBox(15);
+        box.setPadding(new Insets(20));
+
+        Label lblInfo = new Label("Ubah nama toko yang akan dicetak pada struk:");
+        TextField txtNamaToko = new TextField(StoreConfig.getStoreName());
+        
+        Button btnSimpan = new Button("✔ Simpan");
+        btnSimpan.setStyle("-fx-background-color: #2ecc71; -fx-text-fill: white; -fx-font-weight: bold;");
+        btnSimpan.setMaxWidth(Double.MAX_VALUE);
+        
+        btnSimpan.setOnAction(e -> {
+            String namaBaru = txtNamaToko.getText().trim();
+            if(namaBaru.isEmpty()) {
+                UIHelper.showAlert(Alert.AlertType.WARNING, "Peringatan", "Nama toko tidak boleh kosong!");
+                return;
+            }
+            StoreConfig.setStoreName(namaBaru);
+            UIHelper.showAlert(Alert.AlertType.INFORMATION, "Sukses", "Nama toko berhasil diubah! Struk selanjutnya akan menggunakan nama baru.");
+            dialog.close();
+        });
+
+        box.getChildren().addAll(lblInfo, txtNamaToko, btnSimpan);
+        dialog.setScene(new Scene(box, 350, -1));
+        dialog.showAndWait();
+    }
+    // --------------------------------------------------------
+
+    private void tampilkanDialogKasirManual() {
+        Stage dialog = new Stage();
+        dialog.initModality(Modality.APPLICATION_MODAL);
+        dialog.setTitle("Input Item Manual");
+
+        VBox box = new VBox(15);
+        box.setPadding(new Insets(20));
+        
+        Label lblInfo = new Label("Masukkan nama dan harga untuk produk di luar menu.");
+        
+        GridPane grid = new GridPane();
+        grid.setHgap(10); grid.setVgap(10);
+        
+        TextField txtNama = new TextField(); txtNama.setPromptText("Contoh: Kerupuk Udang");
+        TextField txtHarga = new TextField(); txtHarga.setPromptText("Contoh: 5000");
+        Spinner<Integer> spnQty = new Spinner<>(1, 999, 1);
+        spnQty.setPrefWidth(100);
+
+        grid.addRow(0, new Label("Nama Item:"), txtNama);
+        grid.addRow(1, new Label("Harga Satuan:"), txtHarga);
+        grid.addRow(2, new Label("Jumlah:"), spnQty);
+
+        Button btnSimpan = new Button("✚ Tambahkan ke Keranjang");
+        btnSimpan.setStyle("-fx-background-color: #2ecc71; -fx-text-fill: white; -fx-font-weight: bold;");
+        btnSimpan.setMaxWidth(Double.MAX_VALUE);
+        
+        btnSimpan.setOnAction(e -> {
+            String namaCustom = txtNama.getText().trim();
+            if (namaCustom.isEmpty()) {
+                UIHelper.showAlert(Alert.AlertType.WARNING, "Peringatan", "Nama item tidak boleh kosong!"); return;
+            }
+            
+            double hargaCustom;
+            try {
+                hargaCustom = Double.parseDouble(txtHarga.getText().trim());
+                if (hargaCustom < 0) throw new NumberFormatException();
+            } catch (NumberFormatException ex) {
+                UIHelper.showAlert(Alert.AlertType.WARNING, "Peringatan", "Harga harus berupa angka positif!"); return;
+            }
+
+            MenuItem baseManualMenu = allMenuItems.stream()
+                .filter(m -> m.getNama().equalsIgnoreCase("Item Manual") && m.getTipe().equals("Kustom"))
+                .findFirst().orElse(null);
+
+            if (baseManualMenu == null) {
+                menuService.simpanMenu(null, "Item Manual", "0", "Kustom");
+                loadMenuData(); 
+                baseManualMenu = allMenuItems.stream()
+                    .filter(m -> m.getNama().equalsIgnoreCase("Item Manual") && m.getTipe().equals("Kustom"))
+                    .findFirst().get();
+            }
+
+            int qty = spnQty.getValue();
+            double subtotal = hargaCustom * qty;
+            String keterangan = namaCustom + " (Rp " + String.format("%,.0f", hargaCustom) + ")";
+
+            keranjang.add(new ItemKeranjang(baseManualMenu, qty, subtotal, keterangan, new ArrayList<>(), new ArrayList<>()));
+            updateTotal();
+            dialog.close();
+        });
+
+        box.getChildren().addAll(lblInfo, grid, btnSimpan);
+        dialog.setScene(new Scene(box, 350, -1));
+        dialog.showAndWait();
+    }
 
     private void prosesKlikMenu(MenuItem menu) {
         List<OpsiMenu> opsiList = menuService.ambilOpsiByMenu(menu.getId());
@@ -316,7 +513,8 @@ public class OrderPane extends HBox {
         List<List<Integer>> chosenPilihanIdsList = new ArrayList<>();
 
         for (ItemKeranjang item : keranjang) {
-            details.add(new DetailTransaksi(0, 0, item.getMenu().getId(), item.getJumlah(), item.getSubtotal()));
+            // Tambahkan item.getKeteranganOpsi() sebagai parameter ke-6
+            details.add(new DetailTransaksi(0, 0, item.getMenu().getId(), item.getJumlah(), item.getSubtotal(), item.getKeteranganOpsi()));
             checkedOpsiIdsList.add(item.getCheckedOpsiIds());
             chosenPilihanIdsList.add(item.getChosenPilihanIds());
         }
@@ -324,9 +522,22 @@ public class OrderPane extends HBox {
         boolean sukses = transaksiService.prosesPembayaran(t, details, checkedOpsiIdsList, chosenPilihanIdsList);
         if (!sukses) { UIHelper.showAlert(Alert.AlertType.ERROR, "Error", "Transaksi gagal! Cek stok bahan Anda."); return; }
 
-        UIHelper.showAlert(Alert.AlertType.INFORMATION, "Sukses", "Transaksi berhasil!");
-        resetOrder(); 
-        onCheckoutSuccess.run();
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Transaksi Berhasil");
+        alert.setHeaderText("Transaksi sukses disimpan ke database.");
+        alert.setContentText("Apakah Anda ingin mencetak struk untuk pesanan ini?");
+        
+        ButtonType btnCetak = new ButtonType("🖨 Cetak Struk");
+        ButtonType btnTutup = new ButtonType("✖ Tidak");
+        alert.getButtonTypes().setAll(btnCetak, btnTutup);
+        
+        alert.showAndWait().ifPresent(type -> {
+            if (type == btnCetak) {
+                PrinterHelper.cetakStruk(t, new ArrayList<>(keranjang));
+            }
+            resetOrder(); 
+            onCheckoutSuccess.run();
+        });
     }
 
     private void resetOrder() {

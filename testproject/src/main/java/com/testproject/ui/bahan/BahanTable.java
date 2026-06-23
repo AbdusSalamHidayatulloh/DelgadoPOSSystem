@@ -4,6 +4,7 @@ import com.testproject.model.Bahan;
 import com.testproject.service.BahanService;
 import com.testproject.utils.UIHelper;
 import javafx.geometry.Insets;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
@@ -14,6 +15,7 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -22,18 +24,27 @@ public class BahanTable extends VBox {
     private final BahanService service;
     private final Runnable onDataChanged;
 
+    // ---- VARIABEL PAGINATION ----
+    private List<Bahan> allBahanData = new ArrayList<>();
+    private final Pagination pagination = new Pagination();
+    private final int ROWS_PER_PAGE = 15;
+
     public BahanTable(BahanService service, Consumer<Bahan> onRowSelected, Runnable onDataChanged) {
         this.service = service;
         this.onDataChanged = onDataChanged;
         
         setSpacing(10);
-        VBox.setVgrow(table, Priority.ALWAYS);
+        // Mengatur agar area pagination mengambil sisa tinggi layar
+        VBox.setVgrow(pagination, Priority.ALWAYS);
 
         setupColumns();
 
         table.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
             onRowSelected.accept(newVal);
         });
+
+        // ---- SETUP PAGINATION ----
+        pagination.setPageFactory(this::createPage);
 
         HBox actionButtons = new HBox(10);
         Button btnRestock = new Button("Restock Bahan");
@@ -45,7 +56,9 @@ public class BahanTable extends VBox {
         btnHapus.setOnAction(e -> hapusBahan());
 
         actionButtons.getChildren().addAll(btnRestock, btnHapus);
-        getChildren().addAll(table, actionButtons);
+        
+        // Memasukkan pagination (yang membungkus tabel) ke layout utama
+        getChildren().addAll(pagination, actionButtons);
     }
 
     private void setupColumns() {
@@ -84,8 +97,36 @@ public class BahanTable extends VBox {
         table.getColumns().addAll(colNama, colSatuan, colJumlah, colStokMin, colStatus);
     }
 
+    // ---- FUNGSI LOGIKA PAGINATION ----
+    private Node createPage(int pageIndex) {
+        int fromIndex = pageIndex * ROWS_PER_PAGE;
+        int toIndex = Math.min(fromIndex + ROWS_PER_PAGE, allBahanData.size());
+        
+        if (fromIndex <= toIndex && !allBahanData.isEmpty()) {
+            table.getItems().setAll(allBahanData.subList(fromIndex, toIndex));
+        } else {
+            table.getItems().clear();
+        }
+        
+        return table; // Mengembalikan tabel yang sudah dipotong datanya
+    }
+
     public void refreshData(List<Bahan> data) {
-        table.getItems().setAll(data);
+        // Simpan data asli secara utuh
+        this.allBahanData = data;
+        
+        // Hitung total halaman
+        int pageCount = (int) Math.ceil((double) allBahanData.size() / ROWS_PER_PAGE);
+        pagination.setPageCount(pageCount == 0 ? 1 : pageCount);
+        
+        // Amankan index jika data dihapus
+        int currPage = pagination.getCurrentPageIndex();
+        if (currPage >= pageCount && pageCount > 0) {
+            currPage = pageCount - 1;
+        }
+        
+        pagination.setCurrentPageIndex(currPage);
+        createPage(currPage); // Refresh UI
     }
 
     private void bukaDialogRestock() {
@@ -143,4 +184,4 @@ public class BahanTable extends VBox {
             }
         });
     }
-}   
+}
