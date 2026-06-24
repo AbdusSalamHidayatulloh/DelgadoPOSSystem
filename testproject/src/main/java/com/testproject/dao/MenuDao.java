@@ -66,4 +66,19 @@ public class MenuDao {
             System.out.println("Error delete MenuItem: " + e.getMessage());
         }
     }
+
+    // --- FUNGSI BARU: Mengecek apakah menu sudah ada di riwayat transaksi ---
+    public boolean isMenuTerpakai(int id) {
+        String sql = "SELECT 1 FROM detail_transaksi WHERE menu_id = ? LIMIT 1";
+        try (Connection conn = DatabaseHelper.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, id);
+            try (ResultSet rs = stmt.executeQuery()) {
+                return rs.next(); // Akan me-return 'true' jika menu pernah dipesan minimal 1 kali
+            }
+        } catch (Exception e) {
+            System.out.println("Error cek menu terpakai: " + e.getMessage());
+            return false;
+        }
+    }
 }

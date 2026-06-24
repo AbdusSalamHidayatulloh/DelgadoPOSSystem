@@ -90,15 +90,19 @@ public class OrderPane extends HBox {
         btnManualItem.setStyle("-fx-background-color: #f39c12; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8px;");
         btnManualItem.setOnAction(e -> tampilkanDialogKasirManual());
 
-        // --- FITUR BARU: TOMBOL SETING STRUK ---
         Button btnSettingStruk = new Button("⚙ Seting Struk");
         btnSettingStruk.setStyle("-fx-background-color: #7f8c8d; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8px;");
         btnSettingStruk.setOnAction(e -> tampilkanDialogSettingStruk());
 
-        HBox searchContainer = new HBox(10, txtSearchMenu, btnManualItem, btnSettingStruk);
+        // --- FITUR BARU #4: KAS KELUAR ---
+        Button btnKasKeluar = new Button("➖ Kas Keluar");
+        btnKasKeluar.setStyle("-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8px;");
+        btnKasKeluar.setOnAction(e -> tampilkanDialogKasKeluar());
+
+        HBox searchContainer = new HBox(10, txtSearchMenu, btnManualItem, btnSettingStruk, btnKasKeluar);
         HBox.setHgrow(txtSearchMenu, Priority.ALWAYS);
         searchContainer.setAlignment(Pos.CENTER_LEFT);
-        // ---------------------------------------
+        // ---------------------------------
 
         TableColumn<MenuItem, String> colNamaMenu = new TableColumn<>("Nama Menu");
         colNamaMenu.setCellValueFactory(new PropertyValueFactory<>("nama"));
@@ -294,7 +298,63 @@ public class OrderPane extends HBox {
         });
     }
 
-    // --- FUNGSI BARU: MENAMPILKAN DIALOG PENGATURAN TOKO ---
+    // --- LOGIKA JENDELA KAS KELUAR ---
+    private void tampilkanDialogKasKeluar() {
+        Stage dialog = new Stage();
+        dialog.initModality(Modality.APPLICATION_MODAL);
+        dialog.setTitle("Catat Pengeluaran Kasir");
+
+        VBox box = new VBox(15);
+        box.setPadding(new Insets(20));
+
+        Label lblInfo = new Label("Gunakan fitur ini jika Anda mengambil uang dari laci kasir\n(misal: beli es batu, bayar parkir, dsb).");
+        
+        GridPane grid = new GridPane();
+        grid.setHgap(10); grid.setVgap(10);
+        
+        TextField txtKet = new TextField(); txtKet.setPromptText("Contoh: Beli Es Batu");
+        TextField txtNominal = new TextField(); txtNominal.setPromptText("Contoh: 15000");
+
+        grid.addRow(0, new Label("Keterangan:"), txtKet);
+        grid.addRow(1, new Label("Nominal (Rp):"), txtNominal);
+
+        Button btnSimpan = new Button("✔ Potong Uang Laci");
+        btnSimpan.setStyle("-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-weight: bold;");
+        btnSimpan.setMaxWidth(Double.MAX_VALUE);
+        
+        btnSimpan.setOnAction(e -> {
+            String ket = txtKet.getText().trim();
+            if (ket.isEmpty()) {
+                UIHelper.showAlert(Alert.AlertType.WARNING, "Peringatan", "Keterangan tidak boleh kosong!"); return;
+            }
+            double nominal;
+            try {
+                nominal = Double.parseDouble(txtNominal.getText().trim());
+                if (nominal <= 0) throw new NumberFormatException();
+            } catch (NumberFormatException ex) {
+                UIHelper.showAlert(Alert.AlertType.WARNING, "Peringatan", "Nominal harus angka positif!"); return;
+            }
+
+            // Trik Akuntansi: Buat transaksi dengan harga minus
+            String tanggal = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+            Transaksi t = new Transaksi(0, "[KAS KELUAR] " + ket, tanggal, -nominal, "Cash", StatusPembayaran.LUNAS, "Pengeluaran");
+            
+            boolean sukses = transaksiService.prosesPembayaran(t, new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+            if (sukses) {
+                UIHelper.showAlert(Alert.AlertType.INFORMATION, "Sukses", "Pengeluaran berhasil dicatat. Total Kas di sistem telah dikurangi.");
+                dialog.close();
+                onCheckoutSuccess.run();
+            } else {
+                UIHelper.showAlert(Alert.AlertType.ERROR, "Error", "Gagal menyimpan ke database.");
+            }
+        });
+
+        box.getChildren().addAll(lblInfo, grid, btnSimpan);
+        dialog.setScene(new Scene(box, 350, -1));
+        dialog.showAndWait();
+    }
+    // ---------------------------------
+
     private void tampilkanDialogSettingStruk() {
         Stage dialog = new Stage();
         dialog.initModality(Modality.APPLICATION_MODAL);
@@ -325,7 +385,6 @@ public class OrderPane extends HBox {
         dialog.setScene(new Scene(box, 350, -1));
         dialog.showAndWait();
     }
-    // --------------------------------------------------------
 
     private void tampilkanDialogKasirManual() {
         Stage dialog = new Stage();
@@ -513,7 +572,6 @@ public class OrderPane extends HBox {
         List<List<Integer>> chosenPilihanIdsList = new ArrayList<>();
 
         for (ItemKeranjang item : keranjang) {
-            // Tambahkan item.getKeteranganOpsi() sebagai parameter ke-6
             details.add(new DetailTransaksi(0, 0, item.getMenu().getId(), item.getJumlah(), item.getSubtotal(), item.getKeteranganOpsi()));
             checkedOpsiIdsList.add(item.getCheckedOpsiIds());
             chosenPilihanIdsList.add(item.getChosenPilihanIds());

@@ -6,6 +6,7 @@ public class Bahan {
     private String satuan;
     private double jumlah;
     private double stokMinimum;
+    private double hargaTerakhir; // FITUR BARU: Menampung harga restock terakhir
 
     public Bahan() {}
 
@@ -31,6 +32,9 @@ public class Bahan {
 
     public double getStokMinimum() { return stokMinimum; }
     public void setStokMinimum(double stokMinimum) { this.stokMinimum = stokMinimum; }
+
+    public double getHargaTerakhir() { return hargaTerakhir; }
+    public void setHargaTerakhir(double hargaTerakhir) { this.hargaTerakhir = hargaTerakhir; }
 
     public boolean isStokRendah() { return jumlah <= stokMinimum; }
 

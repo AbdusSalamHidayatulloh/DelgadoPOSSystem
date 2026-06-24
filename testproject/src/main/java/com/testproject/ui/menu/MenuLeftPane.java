@@ -105,8 +105,23 @@ public class MenuLeftPane extends VBox {
 
         btnHapus.setOnAction(e -> {
             if (selectedMenu == null) return;
-            service.hapusMenu(selectedMenu.getId());
-            refreshData(); resetForm();
+            
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION, "Yakin ingin menghapus menu '" + selectedMenu.getNama() + "'?", ButtonType.YES, ButtonType.NO);
+            confirm.showAndWait().ifPresent(res -> {
+                if (res == ButtonType.YES) {
+                    try {
+                        service.hapusMenu(selectedMenu.getId());
+                        refreshData(); 
+                        resetForm();
+                        UIHelper.showAlert(Alert.AlertType.INFORMATION, "Sukses", "Menu berhasil dihapus.");
+                    } catch (IllegalStateException ex) {
+                        // Menangkap pelemparan error "Menu Terpakai" dari Service
+                        UIHelper.showAlert(Alert.AlertType.ERROR, "Penolakan Sistem", ex.getMessage());
+                    } catch (Exception ex) {
+                        UIHelper.showAlert(Alert.AlertType.ERROR, "Error", "Terjadi kesalahan: " + ex.getMessage());
+                    }
+                }
+            });
         });
 
         btnReset.setOnAction(e -> resetForm());
@@ -128,7 +143,6 @@ public class MenuLeftPane extends VBox {
     }
 
     public void refreshData() {
-        // --- TRIK GHOST ITEM: Sembunyikan Item Manual dari tabel ---
         allMenuItems = service.ambilSemuaMenu().stream()
                 .filter(m -> !(m.getNama().equalsIgnoreCase("Item Manual") && m.getTipe().equalsIgnoreCase("Kustom")))
                 .collect(Collectors.toList());

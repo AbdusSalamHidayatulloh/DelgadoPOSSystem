@@ -24,7 +24,6 @@ public class BahanTable extends VBox {
     private final BahanService service;
     private final Runnable onDataChanged;
 
-    // ---- VARIABEL PAGINATION ----
     private List<Bahan> allBahanData = new ArrayList<>();
     private final Pagination pagination = new Pagination();
     private final int ROWS_PER_PAGE = 15;
@@ -34,7 +33,6 @@ public class BahanTable extends VBox {
         this.onDataChanged = onDataChanged;
         
         setSpacing(10);
-        // Mengatur agar area pagination mengambil sisa tinggi layar
         VBox.setVgrow(pagination, Priority.ALWAYS);
 
         setupColumns();
@@ -43,7 +41,6 @@ public class BahanTable extends VBox {
             onRowSelected.accept(newVal);
         });
 
-        // ---- SETUP PAGINATION ----
         pagination.setPageFactory(this::createPage);
 
         HBox actionButtons = new HBox(10);
@@ -56,21 +53,39 @@ public class BahanTable extends VBox {
         btnHapus.setOnAction(e -> hapusBahan());
 
         actionButtons.getChildren().addAll(btnRestock, btnHapus);
-        
-        // Memasukkan pagination (yang membungkus tabel) ke layout utama
         getChildren().addAll(pagination, actionButtons);
     }
 
     private void setupColumns() {
         TableColumn<Bahan, String> colNama = new TableColumn<>("Nama Bahan");
         colNama.setCellValueFactory(new PropertyValueFactory<>("nama"));
-        colNama.setPrefWidth(150);
+        colNama.setPrefWidth(140);
 
         TableColumn<Bahan, String> colSatuan = new TableColumn<>("Satuan");
         colSatuan.setCellValueFactory(new PropertyValueFactory<>("satuan"));
-        colSatuan.setPrefWidth(70);
+        colSatuan.setPrefWidth(65);
 
-        TableColumn<Bahan, Double> colJumlah = new TableColumn<>("Jumlah");
+        // --- KOLOM BARU: HARGA BELI TERAKHIR ---
+        TableColumn<Bahan, Double> colHarga = new TableColumn<>("Harga/Satuan");
+        colHarga.setCellValueFactory(new PropertyValueFactory<>("hargaTerakhir"));
+        colHarga.setCellFactory(col -> new TableCell<>() {
+            @Override protected void updateItem(Double val, boolean empty) {
+                super.updateItem(val, empty);
+                if (empty || val == null) { 
+                    setText(null); setStyle(""); 
+                } else if (val == 0) { 
+                    setText("Belum ada"); 
+                    setStyle("-fx-text-fill: gray; -fx-font-style: italic;"); 
+                } else { 
+                    setText(String.format("Rp %,.0f", val).replace(",", ".")); 
+                    setStyle(""); 
+                }
+            }
+        });
+        colHarga.setPrefWidth(100);
+        // ---------------------------------------
+
+        TableColumn<Bahan, Double> colJumlah = new TableColumn<>("Sisa Stok");
         colJumlah.setCellValueFactory(new PropertyValueFactory<>("jumlah"));
         colJumlah.setCellFactory(col -> new UIHelper.FormatDesimalCell<>());
         colJumlah.setPrefWidth(70);
@@ -78,7 +93,7 @@ public class BahanTable extends VBox {
         TableColumn<Bahan, Double> colStokMin = new TableColumn<>("Stok Min");
         colStokMin.setCellValueFactory(new PropertyValueFactory<>("stokMinimum"));
         colStokMin.setCellFactory(col -> new UIHelper.FormatDesimalCell<>());
-        colStokMin.setPrefWidth(70);
+        colStokMin.setPrefWidth(65);
 
         TableColumn<Bahan, String> colStatus = new TableColumn<>("Status");
         colStatus.setCellValueFactory(new PropertyValueFactory<>("nama")); 
@@ -94,10 +109,9 @@ public class BahanTable extends VBox {
         });
         colStatus.setPrefWidth(110);
 
-        table.getColumns().addAll(colNama, colSatuan, colJumlah, colStokMin, colStatus);
+        table.getColumns().addAll(colNama, colSatuan, colHarga, colJumlah, colStokMin, colStatus);
     }
 
-    // ---- FUNGSI LOGIKA PAGINATION ----
     private Node createPage(int pageIndex) {
         int fromIndex = pageIndex * ROWS_PER_PAGE;
         int toIndex = Math.min(fromIndex + ROWS_PER_PAGE, allBahanData.size());
@@ -108,25 +122,22 @@ public class BahanTable extends VBox {
             table.getItems().clear();
         }
         
-        return table; // Mengembalikan tabel yang sudah dipotong datanya
+        return table; 
     }
 
     public void refreshData(List<Bahan> data) {
-        // Simpan data asli secara utuh
         this.allBahanData = data;
         
-        // Hitung total halaman
         int pageCount = (int) Math.ceil((double) allBahanData.size() / ROWS_PER_PAGE);
         pagination.setPageCount(pageCount == 0 ? 1 : pageCount);
         
-        // Amankan index jika data dihapus
         int currPage = pagination.getCurrentPageIndex();
         if (currPage >= pageCount && pageCount > 0) {
             currPage = pageCount - 1;
         }
         
         pagination.setCurrentPageIndex(currPage);
-        createPage(currPage); // Refresh UI
+        createPage(currPage); 
     }
 
     private void bukaDialogRestock() {

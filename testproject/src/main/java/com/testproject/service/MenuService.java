@@ -35,6 +35,13 @@ public class MenuService {
     }
 
     public void hapusMenu(int menuId) {
+        // --- FITUR BARU: Mencegah menu dihapus jika sudah ada di riwayat transaksi ---
+        if (menuDao.isMenuTerpakai(menuId)) {
+            throw new IllegalStateException("Menu ini tidak bisa dihapus karena sudah tercatat di dalam Riwayat Transaksi pelanggan.\n\nSaran: Ubah nama menu ini menjadi '[TIDAK AKTIF] " + 
+            menuDao.getAll().stream().filter(m -> m.getId() == menuId).findFirst().map(MenuItem::getNama).orElse("Menu") + 
+            "' agar tidak membingungkan kasir.");
+        }
+        
         opsiDao.deleteByMenuId(menuId);
         menuDao.delete(menuId);
     }
@@ -89,7 +96,6 @@ public class MenuService {
     
     public void hapusResepMenu(int mId, int bId) { bahanDao.deleteResep(mId, bId); }
 
-    // FITUR BARU: Menghitung total modal berdasarkan harga restock terakhir
     public double hitungTotalModalMenu(int menuId) {
         double totalModal = 0;
         String sql = "SELECT rm.jumlah_dipakai, " +

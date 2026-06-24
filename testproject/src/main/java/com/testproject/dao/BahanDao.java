@@ -15,7 +15,10 @@ public class BahanDao {
 
     public List<Bahan> getAll() {
         List<Bahan> list = new ArrayList<>();
-        String sql = "SELECT * FROM bahan";
+        // QUERY BARU: Ambil harga per satuan dari riwayat restock paling terbaru
+        String sql = "SELECT b.*, " +
+                     "(SELECT harga_per_satuan FROM riwayat_restock rr WHERE rr.bahan_id = b.id ORDER BY id DESC LIMIT 1) as harga_terakhir " +
+                     "FROM bahan b";
         try (Connection conn = DatabaseHelper.getConnection();
              Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
@@ -68,10 +71,6 @@ public class BahanDao {
         }
     }
 
-    /**
-     * Atomically updates bahan stock AND inserts riwayat_restock.
-     * Rolls back both if either fails.
-     */
     public boolean restock(int bahanId, double jumlahTambah, double hargaTotal, String tanggal) {
         double hargaPerSatuan = hargaTotal / jumlahTambah;
 
@@ -82,14 +81,12 @@ public class BahanDao {
 
         try (Connection conn = DatabaseHelper.getTransactionConnection()) {
             try {
-                // 1. Update stock
                 try (PreparedStatement stmt = conn.prepareStatement(sqlUpdate)) {
                     stmt.setDouble(1, jumlahTambah);
                     stmt.setInt(2, bahanId);
                     stmt.executeUpdate();
                 }
 
-                // 2. Insert history
                 try (PreparedStatement stmt = conn.prepareStatement(sqlInsert)) {
                     stmt.setInt(1, bahanId);
                     stmt.setString(2, tanggal);
@@ -108,14 +105,15 @@ public class BahanDao {
                 return false;
             }
         } catch (Exception e) {
-            System.out.println("Error restock connection: " + e.getMessage());
             return false;
         }
     }
 
     public List<Bahan> getStokRendah() {
         List<Bahan> list = new ArrayList<>();
-        String sql = "SELECT * FROM bahan WHERE jumlah <= stok_minimum";
+        String sql = "SELECT b.*, " +
+                     "(SELECT harga_per_satuan FROM riwayat_restock rr WHERE rr.bahan_id = b.id ORDER BY id DESC LIMIT 1) as harga_terakhir " +
+                     "FROM bahan b WHERE b.jumlah <= b.stok_minimum";
         try (Connection conn = DatabaseHelper.getConnection();
              Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
@@ -139,13 +137,9 @@ public class BahanDao {
                     rs.getDouble("jumlah_tambah"), rs.getDouble("harga_total"),
                     rs.getDouble("harga_per_satuan")));
             }
-        } catch (Exception e) {
-            System.out.println("Error getRiwayatRestock: " + e.getMessage());
-        }
+        } catch (Exception e) { }
         return list;
     }
-
-    // ── RESEP MENU ───────────────────────────────────────────────
 
     public List<ResepItem> getResepByMenuId(int menuId) {
         List<ResepItem> list = new ArrayList<>();
@@ -161,9 +155,7 @@ public class BahanDao {
                     rs.getString("nama"), rs.getString("satuan"),
                     rs.getDouble("jumlah_dipakai")));
             }
-        } catch (Exception e) {
-            System.out.println("Error getResep: " + e.getMessage());
-        }
+        } catch (Exception e) {}
         return list;
     }
 
@@ -176,9 +168,7 @@ public class BahanDao {
             stmt.setInt(2, bahanId);
             stmt.setDouble(3, jumlahDipakai);
             stmt.executeUpdate();
-        } catch (Exception e) {
-            System.out.println("Error addResep: " + e.getMessage());
-        }
+        } catch (Exception e) {}
     }
 
     public void deleteResep(int menuId, int bahanId) {
@@ -188,25 +178,15 @@ public class BahanDao {
             stmt.setInt(1, menuId);
             stmt.setInt(2, bahanId);
             stmt.executeUpdate();
-        } catch (Exception e) {
-            System.out.println("Error deleteResep: " + e.getMessage());
-        }
+        } catch (Exception e) {}
     }
 
-    // ── STOCK DEDUCTION ──────────────────────────────────────────
-
-    /**
-     * Atomically checks and deducts stock for a menu item + chosen options.
-     * All checks and deductions run in a single transaction — either all
-     * succeed or nothing is changed.
-     */
     public boolean kurangiStokWithOpsi(
             OpsiMenuDao opsiMenuDao,
             int menuId, int jumlah,
             List<Integer> checkedOpsiIds,
             List<Integer> chosenPilihanIds) {
 
-        // Build total needed map outside the transaction (read-only queries)
         Map<Integer, Double> totalNeeded = new LinkedHashMap<>();
         Map<Integer, String> namaMap    = new LinkedHashMap<>();
 
@@ -229,10 +209,8 @@ public class BahanDao {
 
         if (totalNeeded.isEmpty()) return true;
 
-        // Single transaction: check then deduct
         try (Connection conn = DatabaseHelper.getTransactionConnection()) {
             try {
-                // 1. Check all sufficiency within the same connection/transaction
                 String sqlCheck = "SELECT jumlah FROM bahan WHERE id=?";
                 for (Map.Entry<Integer, Double> entry : totalNeeded.entrySet()) {
                     try (PreparedStatement stmt = conn.prepareStatement(sqlCheck)) {
@@ -241,8 +219,6 @@ public class BahanDao {
                         if (rs.next()) {
                             double stokAda = rs.getDouble("jumlah");
                             if (stokAda < entry.getValue()) {
-                                System.out.printf("Stok tidak cukup: %s (ada %.2f, butuh %.2f)%n",
-                                    namaMap.get(entry.getKey()), stokAda, entry.getValue());
                                 conn.rollback();
                                 return false;
                             }
@@ -250,7 +226,6 @@ public class BahanDao {
                     }
                 }
 
-                // 2. Deduct all
                 String sqlDeduct = "UPDATE bahan SET jumlah = jumlah - ? WHERE id=?";
                 for (Map.Entry<Integer, Double> entry : totalNeeded.entrySet()) {
                     try (PreparedStatement stmt = conn.prepareStatement(sqlDeduct)) {
@@ -265,29 +240,31 @@ public class BahanDao {
 
             } catch (Exception e) {
                 conn.rollback();
-                System.out.println("Error kurangiStok (rolled back): " + e.getMessage());
                 return false;
             }
         } catch (Exception e) {
-            System.out.println("Error kurangiStok connection: " + e.getMessage());
             return false;
         }
     }
 
-    /** Legacy wrapper — keeps TransaksiDao.addDetailWithStockDeduction compiling. */
     public boolean kurangiStok(int menuId, int jumlahDipesan) {
         return kurangiStokWithOpsi(new OpsiMenuDao(), menuId, jumlahDipesan,
                 new ArrayList<>(), new ArrayList<>());
     }
 
-    // ── HELPERS ──────────────────────────────────────────────────
-
     private Bahan mapRow(ResultSet rs) throws Exception {
-        return new Bahan(
+        Bahan b = new Bahan(
             rs.getInt("id"),
             rs.getString("nama"),
             rs.getString("satuan"),
             rs.getDouble("jumlah"),
             rs.getDouble("stok_minimum"));
+            
+        // PENGAMAN: Jika database masih versi lama dan belum punya kolom harga_terakhir
+        try {
+            b.setHargaTerakhir(rs.getDouble("harga_terakhir"));
+        } catch (Exception ignored) {}
+        
+        return b;
     }
 }
